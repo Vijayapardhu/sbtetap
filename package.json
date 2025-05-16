@@ -2,7 +2,9 @@
   "name": "apsbtet-playwright",
   "version": "1.0.0",
   "main": "fetchStudentInfo.js",
-  "scripts": {},
+  "scripts": {
+    "start": "node newserver.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
