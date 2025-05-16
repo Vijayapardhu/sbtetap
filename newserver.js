@@ -31,7 +31,7 @@ const calculateExternalMarksForSubject = (internal, pin, subjectCode, isSessiona
 
   switch (subjectCode) {
     case '401':
-      externalMarks = Math.round(subjectMultiplier * internal + 1 + randomAdjustment);
+      externalMarks = Math.round(subjectMultiplier * internal + 18 + randomAdjustment);
       break;
     case '402':
       externalMarks = Math.round(subjectMultiplier * internal + 4 + randomAdjustment);
