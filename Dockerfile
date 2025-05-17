@@ -13,6 +13,7 @@ COPY . .
 
 # 5. Install Playwright browser binaries
 RUN npx playwright install --with-deps
+RUN npm install playwright-extra playwright-extra-plugin-stealth
 
 EXPOSE 3000
 # 6. Start the app
