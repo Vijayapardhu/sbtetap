@@ -8,129 +8,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve the home.html file for the root route
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'main.html'));
+  res.send('Welcome to the Playwright API');
 });
 
-// Function to generate a consistent random number based on a seed
-function seededRandom(seed) {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
+// ... Keep all your calculation functions (as-is) ...
 
-// Function to calculate external marks for each subject
-const calculateExternalMarksForSubject = (internal, pin, subjectCode, isSessional = false) => {
-  const seed = parseInt(`${pin}${subjectCode}`, 36); // Combine PIN and subject code as a string and convert to base-36
-  const randomAdjustment = Math.floor(seededRandom(seed) * 13) - 6; // Random value between -6 and +6
-
-  const baseMultiplier = 2.5; // Base multiplier for external marks
-  const subjectMultiplier = baseMultiplier + (parseInt(subjectCode) % 10) * 0.3; // Increment multiplier by 0.3 for each subject
-
-  let externalMarks;
-
-  switch (subjectCode) {
-    case '401':
-      externalMarks = Math.round(subjectMultiplier * internal + 18 + randomAdjustment);
-      break;
-    case '402':
-      externalMarks = Math.round(subjectMultiplier * internal + 4 + randomAdjustment);
-      break;
-    case '403':
-      externalMarks = Math.round(subjectMultiplier * internal + 13 + randomAdjustment);
-      break;
-    case '404':
-      externalMarks = Math.round(subjectMultiplier * internal + 2 + randomAdjustment);
-      break;
-    case '405':
-      externalMarks = Math.round(subjectMultiplier * internal + 5 + randomAdjustment);
-      break;
-    default:
-      externalMarks = Math.round(subjectMultiplier * internal + 6 + randomAdjustment);
-      break;
-  }
-
-  internal = Math.min(internal, 80);
-
-  if (isSessional) {
-    externalMarks = Math.max(0, Math.min(60, externalMarks)); // Sessional exams: max 60
-  } else {
-    externalMarks = Math.max(0, Math.min(80, externalMarks)); // Unit exams: max 80
-  }
-
-  return externalMarks;
-};
-
-// Function to generate subject codes based on PIN
-const generateSubjectCodes = (pin, startCode, count) => {
-  const subjectCodes = [];
-  for (let i = 0; i < count; i++) {
-    subjectCodes.push(startCode + i); // Generate sequential subject codes
-  }
-  return subjectCodes;
-};
-
-// Function to calculate the average of two test marks for each subject
-const calculateAverageMarks = (marks) => {
-  const averagedMarks = [];
-  for (let i = 0; i < marks.length; i += 2) {
-    const test1 = marks[i] || 0;
-    const test2 = marks[i + 1] || 0;
-    const average = Math.round((test1 + test2) / 2);
-    averagedMarks.push(average);
-  }
-  return averagedMarks;
-};
-
-// Function to calculate the average of unit test marks dynamically based on PIN prefix
-const calculateDynamicAverageMarks = (marks, pin) => {
-  const averagedMarks = [];
-  const testsPerSubject = pin.startsWith('24') ? 3 : 2; // Determine if there are 3 or 2 tests per subject
-
-  for (let i = 0; i < marks.length; i++) {
-    const test1 = marks[i][0] || 0;
-    const test2 = marks[i][1] || 0;
-    const test3 = testsPerSubject === 3 ? (marks[i][2] || 0) : 0; // Include the 3rd test if applicable
-    const average = Math.round((test1 + test2 + test3) / testsPerSubject); // Calculate average
-    averagedMarks.push(average);
-  }
-
-  return averagedMarks;
-};
-
-// Function to calculate grade points, grade, and status
-const calculateGradeDetails = (totalMarks) => {
-  let gradePoints, grade, status;
-
-  if (totalMarks >= 90) {
-    gradePoints = 10;
-    grade = 'A+';
-  } else if (totalMarks >= 80) {
-    gradePoints = 9;
-    grade = 'A';
-  } else if (totalMarks >= 70) {
-    gradePoints = 8;
-    grade = 'B+';
-  } else if (totalMarks >= 60) {
-    gradePoints = 7;
-    grade = 'B';
-  } else if (totalMarks >= 50) {
-    gradePoints = 6;
-    grade = 'C';
-  } else if (totalMarks >= 40) {
-    gradePoints = 5;
-    grade = 'D';
-  } else {
-    gradePoints = 0;
-    grade = 'F';
-  }
-
-  status = totalMarks >= 40 ? 'P' : 'F';
-
-  return { gradePoints, grade, status };
-};
-
-// Endpoint to fetch student info
 app.post('/fetch-student-info', async (req, res) => {
   const { pin } = req.body;
 
@@ -138,21 +21,25 @@ app.post('/fetch-student-info', async (req, res) => {
   const page = await browser.newPage();
 
   try {
-    // Fetch student details and marks
-    await page.goto('https://apsbtet.net/studentportal/screens/MainStudentInfo.aspx');
+    // 1. Go to first APSBTET page
+    await page.goto('https://apsbtet.net/studentportal/screens/MainStudentInfo.aspx', {
+      timeout: 60000,
+      waitUntil: 'domcontentloaded'
+    });
 
+    await page.waitForTimeout(2000); // Wait a bit before interaction
     await page.fill('#ContentPlaceHolder1_txtpinno', pin);
     await page.click('#ContentPlaceHolder1_btngetunitmarks');
-    await page.waitForSelector('#ContentPlaceHolder1_gvMArks');
+    await page.waitForSelector('#ContentPlaceHolder1_gvMArks', { timeout: 15000 });
 
+    // Continue fetching data (same as your original logic)
     const name = await page.textContent('#ContentPlaceHolder1_lblName');
     const father = await page.textContent('#ContentPlaceHolder1_lblFather');
-    //const branch = await page.textContent('#ContentPlaceHolder1_lblbranch');
-    // Extract unit marks
+    
     const unitRows = await page.$$('#ContentPlaceHolder1_gvMArks tr');
     const unitMarks = [];
-    const testsPerSubject = pin.startsWith('24') ? 3 : 2; // Determine if there are 3 or 2 tests per subject
-    const rowsPerTest = Math.floor(unitRows.length / testsPerSubject); // Calculate rows per test
+    const testsPerSubject = pin.startsWith('24') ? 3 : 2;
+    const rowsPerTest = Math.floor(unitRows.length / testsPerSubject);
 
     for (let i = 0; i < rowsPerTest; i++) {
       const test1 = parseInt((await unitRows[i].$$eval('td', cells => cells[6]?.textContent?.trim())) || '0', 10);
@@ -160,15 +47,13 @@ app.post('/fetch-student-info', async (req, res) => {
       const test3 = testsPerSubject === 3
         ? parseInt((await unitRows[i + 2 * rowsPerTest].$$eval('td', cells => cells[6]?.textContent?.trim())) || '0', 10)
         : 0;
-
       unitMarks.push([test1, test2, test3]);
     }
 
-    // Calculate dynamic averages based on PIN prefix
     const averagedUnitMarks = calculateDynamicAverageMarks(unitMarks, pin);
 
     await page.click('#ContentPlaceHolder1_btngetsessionmarks');
-    await page.waitForSelector('#ContentPlaceHolder1_gvMArks');
+    await page.waitForSelector('#ContentPlaceHolder1_gvMArks', { timeout: 15000 });
 
     const sessionRows = await page.$$('#ContentPlaceHolder1_gvMArks tr');
     const sessionMarks = [];
@@ -179,6 +64,7 @@ app.post('/fetch-student-info', async (req, res) => {
       sessionMarks.push(obtainedMarks);
     }
 
+    // Subject code generation, external mark calculations, etc.
     const totalUnitSubjects = averagedUnitMarks.length;
     const totalSessionSubjects = sessionMarks.length;
 
@@ -207,21 +93,23 @@ app.post('/fetch-student-info', async (req, res) => {
 
     const GrandTotal = totalInternalUnit + totalExternalUnit + totalInternalSession + totalExternalSession;
 
-    // Fetch photo
-    await page.goto('https://sbtet.ap.gov.in/APSBTET/registerInstant.do');
+    // 2. Go to second APSBTET site (photo + branch)
+    await page.goto('https://sbtet.ap.gov.in/APSBTET/registerInstant.do', {
+      timeout: 60000,
+      waitUntil: 'domcontentloaded',
+    });
+
+    await page.waitForTimeout(3000); // Wait before interacting
     await page.fill('#aadhar1', pin);
     await page.click('input[type="button"][value="GO"]');
-    await page.waitForSelector('input.form-control-plaintext');
+    await page.waitForSelector('input.form-control-plaintext', { timeout: 10000 });
 
-// Locate the label with the text "Branch" and find the associated input field
-const branch = await page.getAttribute('label:has-text("Branch") + div > input', 'value');
+    const branch = await page.getAttribute('label:has-text("Branch") + div > input', 'value');
     const images = await page.$$('img');
     let photoBase64 = null;
-
     if (images.length >= 3) {
-      const thirdImage = images[2];
-      const imgSrc = await thirdImage.getAttribute('src');
-      if (imgSrc) {
+      const imgSrc = await images[2].getAttribute('src');
+      if (imgSrc?.includes('data:image')) {
         photoBase64 = imgSrc.replace('data:image/jpg;base64,', '');
       }
     }
@@ -229,8 +117,15 @@ const branch = await page.getAttribute('label:has-text("Branch") + div > input',
     const result = {
       name: name.trim(),
       pin: pin.toUpperCase().trim(),
-      branch: branch.trim(),
+      branch: branch?.trim() || '',
       photoBase64,
+      totals: {
+        totalInternalUnit,
+        totalExternalUnit,
+        totalInternalSession,
+        totalExternalSession,
+        GrandTotal,
+      },
       unitResults: unitSubjectCodes.map((code, index) => {
         const internalMarks = averagedUnitMarks[index];
         const externalMarks = calculateExternalMarksForSubject(internalMarks, pin, code);
@@ -265,25 +160,20 @@ const branch = await page.getAttribute('label:has-text("Branch") + div > input',
           status,
         };
       }),
-      totals: {
-        totalInternalUnit,
-        totalExternalUnit,
-        totalInternalSession,
-        totalExternalSession,
-        GrandTotal,
-      },
     };
 
     fs.writeFileSync('student-info.json', JSON.stringify(result, null, 2));
     res.json(result);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch student info' });
+    console.error('ERROR:', error.message);
+    res.status(500).json({ error: 'Failed to fetch student info', details: error.message });
   } finally {
     await browser.close();
   }
 });
 
-app.listen(3000, () => {
-  console.log('Server running on http://localhost:3000');
+// Use process.env.PORT for Render compatibility
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
